@@ -16,6 +16,7 @@ import { getToken, removeToken } from "./../token";
 import { useState, useEffect } from "react";
 import DC from "./../DC";
 import toast from "react-hot-toast";
+import io from "socket.io-client";
 
 // ════════════════════════════════════════════════════════════════════════════════
 // Dashboard
@@ -124,6 +125,7 @@ export default function Dashboard() {
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     if (user) loadTree(user.id);
+
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
   function refreshTree() {

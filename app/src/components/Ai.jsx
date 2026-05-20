@@ -5,6 +5,8 @@ import API from "./../lib/apibasepath";
 import { CldUploadWidget } from "next-cloudinary";
 import Image from "next/image";
 import { useState, useEffect, useRef, useCallback } from "react";
+import { io } from "socket.io-client";
+
 import {
   IconSend,
   IconSparkle,
@@ -63,10 +65,6 @@ function FileNameModal({ onConfirm, onCancel }) {
   const [name, setName] = useState("");
   const inputRef = useRef(null);
 
-  useEffect(() => {
-    setTimeout(() => inputRef.current?.focus(), 50);
-  }, []);
-
   function handleSubmit(e) {
     e.preventDefault();
     const trimmed = name.trim();
@@ -119,6 +117,7 @@ const AIAssistant = ({ user }) => {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
+  const [socket, setsocket] = useState(null);
 
   // Attachment: { publicid, url, name, bytes, time, isImage }
   const [attachment, setAttachment] = useState(null);
@@ -133,6 +132,20 @@ const AIAssistant = ({ user }) => {
   const widgetOpenRef = useRef(null);
 
   const meid = user?.id ?? "";
+
+  useEffect(() => {
+    setTimeout(() => inputRef.current?.focus(), 50);
+
+    const soc = io("http://localhost:3000");
+
+    soc.on("connect", () => {
+      setsocket(soc);
+    });
+
+    return () => {
+      soc.disconnect();
+    };
+  }, []);
 
   // ── Restore attachment from localStorage on mount ──────────────────────────
   useEffect(() => {
@@ -231,86 +244,93 @@ const AIAssistant = ({ user }) => {
   // ── runAICommand ────────────────────────────────────────────────────────────
   // file_ids is passed in when an attachment is present so nested/root
   // placements use the real file data, never n/a dummies.
-  async function runAICommand(cmd, mydata, id, file_ids = null) {
+  function runAICommand(cmd, mydata, id, file_ids = null) {
     const noFile = { publicid: "n/a", url: "n/a", name: "n/a", bytes: 0 };
 
     try {
       const messages = [
         { role: "user", content: `${cmd} MyData:${JSON.stringify(mydata)}` },
       ];
-      const res = await axios.post(`${API}/ai`, { dataforai: messages });
-      const obj =
-        typeof res.data?.myai === "string"
-          ? JSON.parse(res.data.myai)
-          : "failed";
 
-      if (obj === "failed" || !obj || obj?.error) {
-        patch(id, "error", obj?.error ?? "Operation failed");
-        return;
-      }
+      socket.emit("send", { dataforai: messages });
 
-      switch (obj.endpoint) {
-        case "createtoplevelfolder":
-          await axios.post(`${API}/createtoplevelfolder/${meid}`, {
-            // If a file is attached and AI decided root placement, use real data
-            type: file_ids ? "file" : (obj?.type ?? "folder"),
-            foldername: file_ids
-              ? file_ids.name
-              : (obj?.foldername ?? "Untitled"),
-            file_ids: file_ids ?? noFile,
-          });
-          patch(
-            id,
-            "done",
-            file_ids
-              ? `File "${file_ids.name}" saved at root`
-              : `Folder "${obj?.foldername ?? "Untitled"}" created at root`,
-          );
-          break;
+      socket.on("errorinai", (data) => {
+        throw new Error(data.message);
+      });
 
-        case "createnestedfolder":
-          await axios.post(`${API}/createnestedfolder/${obj.idoffolderdoc}`, {
-            // If a file is attached and AI decided nested placement, use real data
-            type: file_ids ? "file" : (obj.type ?? "folder"),
-            foldername: file_ids
-              ? file_ids.name
-              : (obj?.body?.foldername ?? "Untitled"),
-            file_ids: file_ids ?? noFile,
-          });
-          patch(
-            id,
-            "done",
-            file_ids
-              ? `File "${file_ids.name}" saved in nested folder`
-              : `Nested folder "${obj?.body?.foldername ?? "Untitled"}" created`,
-          );
-          break;
+      socket.on("success", async (data) => {
+        //await axios.post(`${API}/ai`, );
+        const obj =
+          typeof data?.myai === "string" ? JSON.parse(data.myai) : "failed";
 
-        case "deletenestedfolder":
-          await axios.delete(
-            `${API}/deletenestedfolder/${meid}/${obj.root}/nodelete`,
-            { data: { arrayoffoldersids: obj?.body?.arrayoffoldersids } },
-          );
-          patch(id, "done", "Folder deleted");
-          break;
+        if (obj === "failed" || !obj || obj?.error) {
+          patch(id, "error", obj?.error ?? "Operation failed");
+          return;
+        }
 
-        case "deleteonlyfiles":
-          await axios.delete(
-            `${API}/deleteonlyfiles/${meid}/${obj?.folderid}${obj?.level ? `?level=${obj.level}` : ""}`,
-            { data: { idsoffiletodelete: obj?.body?.idsoffiletodelete } },
-          );
-          patch(id, "done", "File(s) deleted");
-          break;
+        switch (obj.endpoint) {
+          case "createtoplevelfolder":
+            await axios.post(`${API}/createtoplevelfolder/${meid}`, {
+              // If a file is attached and AI decided root placement, use real data
+              type: file_ids ? "file" : (obj?.type ?? "folder"),
+              foldername: file_ids
+                ? file_ids.name
+                : (obj?.foldername ?? "Untitled"),
+              file_ids: file_ids ?? noFile,
+            });
+            patch(
+              id,
+              "done",
+              file_ids
+                ? `File "${file_ids.name}" saved at root`
+                : `Folder "${obj?.foldername ?? "Untitled"}" created at root`,
+            );
+            break;
 
-        case "renamefolder":
-          await axios.put(`${API}/renamefolder/${obj?.id}/${obj?.chgname}`);
-          patch(id, "done", `Renamed to "${obj?.chgname}"`);
-          break;
+          case "createnestedfolder":
+            await axios.post(`${API}/createnestedfolder/${obj.idoffolderdoc}`, {
+              // If a file is attached and AI decided nested placement, use real data
+              type: file_ids ? "file" : (obj.type ?? "folder"),
+              foldername: file_ids
+                ? file_ids.name
+                : (obj?.body?.foldername ?? "Untitled"),
+              file_ids: file_ids ?? noFile,
+            });
+            patch(
+              id,
+              "done",
+              file_ids
+                ? `File "${file_ids.name}" saved in nested folder`
+                : `Nested folder "${obj?.body?.foldername ?? "Untitled"}" created`,
+            );
+            break;
 
-        default:
-          patch(id, "error", obj?.error ?? "Unknown operation");
-          break;
-      }
+          case "deletenestedfolder":
+            await axios.delete(
+              `${API}/deletenestedfolder/${meid}/${obj.root}/nodelete`,
+              { data: { arrayoffoldersids: obj?.body?.arrayoffoldersids } },
+            );
+            patch(id, "done", "Folder deleted");
+            break;
+
+          case "deleteonlyfiles":
+            await axios.delete(
+              `${API}/deleteonlyfiles/${meid}/${obj?.folderid}${obj?.level ? `?level=${obj.level}` : ""}`,
+              { data: { idsoffiletodelete: obj?.body?.idsoffiletodelete } },
+            );
+            patch(id, "done", "File(s) deleted");
+            break;
+
+          case "renamefolder":
+            await axios.put(`${API}/renamefolder/${obj?.id}/${obj?.chgname}`);
+            patch(id, "done", `Renamed to "${obj?.chgname}"`);
+            break;
+
+          default:
+            patch(id, "error", obj?.error ?? "Unknown operation");
+            break;
+        }
+      });
     } catch (err) {
       patch(id, "error", err?.response?.data?.message ?? "Request failed");
     }
