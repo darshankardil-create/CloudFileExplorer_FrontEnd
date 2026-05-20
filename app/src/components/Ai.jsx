@@ -136,7 +136,7 @@ const AIAssistant = ({ user }) => {
   useEffect(() => {
     setTimeout(() => inputRef.current?.focus(), 50);
 
-    const soc = io("http://localhost:3000");
+    const soc = io("https://cloudfileexplorer-backend-1.onrender.com");
 
     soc.on("connect", () => {
       setsocket(soc);
