@@ -30,12 +30,50 @@ CloudFileExplorer is a personal cloud storage manager where users organize files
 
 ## Key Features
 
-### AI Command Terminal
+## AI Command Terminal — Capabilities
 - A floating drawer lets users type natural-language commands like *"create a folder called Reports inside Finance"* or *"delete the file named invoice from Q1"*
 - On send, the frontend fetches the user's full storage snapshot via `GET /getallmydataforai`, then sends it alongside the command to the backend over **Socket.IO**
 - The backend passes the data to **Qwen3.6-27B** on Hugging Face with a strict system prompt that instructs the model to return only a JSON object describing which API endpoint to call and with what parameters — no natural-language response
 - The frontend reads the JSON, calls the matching REST endpoint, and updates the command log entry from `running → done / error` with a descriptive label — all without a page reload
 - Supports file attachment: users can upload a file via Cloudinary first, then pair it with a command (e.g. *"save this to the Finance folder"*) or just send it to root directly
+
+
+The terminal uses an AI reasoning layer that reads your question alongside your current folder tree data (`mydata`) to identify the correct endpoint, resolve the right IDs and names, then calls the API automatically — no manual configuration needed.
+
+| # | Action | Endpoint |
+|---|---|---|
+| 1 | Create a top-level folder | `createtoplevelfolder` (type: folder) |
+| 2 | Save a file to root/top level | `createtoplevelfolder` (type: file) |
+| 3 | Create a nested folder inside another folder | `createnestedfolder` (type: folder) |
+| 4 | Upload a file into a specific folder | `createnestedfolder` (type: file) |
+| 5 | Delete a top-level folder (+ all its contents) | `deletenestedfolder` (root: "root") |
+| 6 | Delete a nested folder (+ all its contents) | `deletenestedfolder` (root: "notroot") |
+| 7 | Delete a specific file from a folder | `deleteonlyfiles` |
+| 8 | Rename a folder | `renamefolder` |
+
+---
+
+## How It Works
+
+For every message you send, the AI:
+1. **Reads your question** to understand the intended action
+2. **Inspects your folder tree** (`mydata`) to locate matching folder names, resolve `_id`s, and verify structure
+3. **Selects the correct endpoint** based on that combined reasoning
+4. **Calls the API automatically** with the right payload — no manual input required
+
+---
+
+## 8 Example Questions You Can Ask It
+
+1. *"Create a new main folder called Projects"* — AI identifies a top-level creation intent → calls `createtoplevelfolder`
+
+2. *"Make a subfolder called Invoices inside the Finance folder"* — AI locates Finance's `_id` in `mydata` → calls `createnestedfolder`
+3. *"Save this file to my home page"* — AI detects root-level upload intent → calls `createtoplevelfolder` (type: file)
+4. *"Upload this to the Design folder"* — AI resolves Design's `_id` from `mydata` → calls `createnestedfolder` (type: file)
+5. *"Delete the folder called Archive"* — AI finds Archive in `mydata`, determines it's top-level → calls `deletenestedfolder` (root: "root"), cascading via `$graphLookup`
+6. *"Delete the file named invoice-jan from the Finance folder"* — AI resolves `publicid` from `mydata` → calls `deleteonlyfiles`
+7. *"Rename the Reports folder to Q1 Reports"* — AI matches the folder name to its `_id` in `mydata` → calls `renamefolder`
+8. *"Add a folder called Meeting Notes under the Work folder"* — AI locates Work's `_id` in `mydata` → calls `createnestedfolder`
 
 ### Infinite Nested Folder Hierarchy
 - Folders can be nested to any depth. Each folder is its own document in MongoDB (`nested_folders_data` collection), storing only references (ObjectIds) to its children — not the children themselves
