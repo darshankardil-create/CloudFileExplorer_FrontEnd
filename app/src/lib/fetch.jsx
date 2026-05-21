@@ -17,8 +17,12 @@ export default function useFetchapi() {
     if (token) headers["Authorization"] = `Bearer ${token}`;
     const res = await fetch(`${API}${path}`, { ...opts, headers });
     const data = await res.json();
+
+    if (!res.ok) {
+      setapitrace(false);
+      throw new Error(data.message || "Request failed");
+    }
     setapitrace(false);
-    if (!res.ok) throw new Error(data.message || "Request failed");
     return data;
   }
 

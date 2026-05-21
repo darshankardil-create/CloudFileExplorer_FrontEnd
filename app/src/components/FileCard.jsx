@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { formatBytes, formatTime } from "./../formatter";
 import setDragGhost from "./Dragghost";
 import Image from "next/image";
@@ -11,10 +12,14 @@ export default function FileCard({
   setDeletingFiles,
   startDrag,
 }) {
+  const [imgError, setImgError] = useState(false);
+
+  const RASTER = /\.(jpg|jpeg|png|gif|webp|avif)(\?|$)/i;
   const isImage =
+    !imgError &&
     file.url &&
-    (/\/image\/upload\//i.test(file.url) ||
-      /\.(jpg|jpeg|png|gif|webp|svg|avif)(\?|$)/i.test(file.url));
+    (/\/image\/upload\//i.test(file.url) && RASTER.test(file.url));
+
   const isSelected = selectedIds.has(file.publicid);
 
   return (
@@ -38,6 +43,7 @@ export default function FileCard({
       >
         {isSelected && <IconCheck className="h-3 w-3 text-white" />}
       </div>
+
       <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
         {isImage ? (
           <div className="relative h-10 w-10 overflow-hidden rounded-lg border border-slate-600/50">
@@ -47,12 +53,14 @@ export default function FileCard({
               fill
               className="object-cover hover:scale-110 transition-transform duration-300"
               sizes="40px"
+              onError={() => setImgError(true)}
             />
           </div>
         ) : (
           <IconFile className="h-8 w-8" />
         )}
       </div>
+
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium text-slate-200 truncate">
           {file.name || file.publicid}
@@ -67,6 +75,7 @@ export default function FileCard({
           </span>
         </div>
       </div>
+
       <div
         className="flex items-center gap-0.5 shrink-0"
         onClick={(e) => e.stopPropagation()}

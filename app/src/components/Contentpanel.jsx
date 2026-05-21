@@ -331,7 +331,7 @@ function ContentPanel({
     const displayName =
       pendingFileNameRef.current || original_filename || public_id;
     const file_ids = {
-      publicid: public_id,
+      publicid: encodeURIComponent(public_id),
       url: secure_url,
       name: displayName,
       bytes,

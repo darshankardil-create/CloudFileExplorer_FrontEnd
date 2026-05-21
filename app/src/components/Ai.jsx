@@ -60,7 +60,6 @@ function lsClear() {
 }
 
 // ─── FileNameModal ─────────────────────────────────────────────────────────────
-// Shown before opening the Cloudinary widget so the user can set a custom name.
 function FileNameModal({ onConfirm, onCancel }) {
   const [name, setName] = useState("");
   const inputRef = useRef(null);
@@ -76,7 +75,6 @@ function FileNameModal({ onConfirm, onCancel }) {
   }
 
   return (
-    // Backdrop
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
       <div className="w-80 rounded-2xl border border-slate-700/60 bg-slate-900 shadow-2xl shadow-black/60 p-5">
         <p className="text-sm font-semibold text-slate-200 mb-1 tracking-tight">
@@ -123,9 +121,11 @@ const AIAssistant = ({ user }) => {
   const [attachment, setAttachment] = useState(null);
   const [attachLoading, setAttachLoading] = useState(false);
 
-  // Controls the filename modal visibility + stores the pending custom name
+  // ── NEW: track image load error ────────────────────────────────────────────
+  const [imgError, setImgError] = useState(false);
+
   const [showNameModal, setShowNameModal] = useState(false);
-  const pendingNameRef = useRef(""); // holds the name entered in the modal
+  const pendingNameRef = useRef("");
 
   const bottomRef = useRef(null);
   const inputRef = useRef(null);
@@ -163,6 +163,12 @@ const AIAssistant = ({ user }) => {
     }
   }, [attachment]);
 
+  // ── Reset imgError whenever attachment URL changes ─────────────────────────
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setImgError(false);
+  }, [attachment?.url]);
+
   useEffect(() => {
     if (open) setTimeout(() => inputRef.current?.focus(), 300);
   }, [open]);
@@ -189,7 +195,6 @@ const AIAssistant = ({ user }) => {
     pendingNameRef.current = name;
     setShowNameModal(false);
     setAttachLoading(true);
-    // Small delay so the modal unmounts cleanly before the widget opens
     setTimeout(() => widgetOpenRef.current?.(), 100);
   }
 
@@ -199,20 +204,19 @@ const AIAssistant = ({ user }) => {
   }
 
   // ── Step 3: Cloudinary upload success ──────────────────────────────────────
-  // We override the name with the one the user typed; public_id comes from
-  // Cloudinary but we surface pendingNameRef.current as the display name.
   function handleUploadSuccess(result) {
     const { public_id, secure_url, bytes, resource_type } = result.info;
-    const isImage =
-      resource_type === "image" ||
-      /\.(jpg|jpeg|png|gif|webp|svg|avif)$/i.test(secure_url);
+
+    // Only treat as image if it's a raster format next/Image can handle
+    const RASTER = /\.(jpg|jpeg|png|gif|webp|avif)$/i;
+    const isImage = resource_type === "image" && RASTER.test(secure_url);
 
     const customName = pendingNameRef.current || public_id;
 
     setAttachment({
-      publicid: public_id, // real Cloudinary public_id (used for deletion)
+      publicid: public_id,
       url: secure_url,
-      name: customName, // user-defined display / storage name
+      name: customName,
       bytes: bytes ?? 0,
       time: Date.now(),
       isImage,
@@ -242,8 +246,6 @@ const AIAssistant = ({ user }) => {
   }
 
   // ── runAICommand ────────────────────────────────────────────────────────────
-  // file_ids is passed in when an attachment is present so nested/root
-  // placements use the real file data, never n/a dummies.
   function runAICommand(cmd, mydata, id, file_ids = null) {
     const noFile = { publicid: "n/a", url: "n/a", name: "n/a", bytes: 0 };
 
@@ -259,7 +261,6 @@ const AIAssistant = ({ user }) => {
       });
 
       socket.on("success", async (data) => {
-        //await axios.post(`${API}/ai`, );
         const obj =
           typeof data?.myai === "string" ? JSON.parse(data.myai) : "failed";
 
@@ -271,7 +272,6 @@ const AIAssistant = ({ user }) => {
         switch (obj.endpoint) {
           case "createtoplevelfolder":
             await axios.post(`${API}/createtoplevelfolder/${meid}`, {
-              // If a file is attached and AI decided root placement, use real data
               type: file_ids ? "file" : (obj?.type ?? "folder"),
               foldername: file_ids
                 ? file_ids.name
@@ -289,7 +289,6 @@ const AIAssistant = ({ user }) => {
 
           case "createnestedfolder":
             await axios.post(`${API}/createnestedfolder/${obj.idoffolderdoc}`, {
-              // If a file is attached and AI decided nested placement, use real data
               type: file_ids ? "file" : (obj.type ?? "folder"),
               foldername: file_ids
                 ? file_ids.name
@@ -362,11 +361,10 @@ const AIAssistant = ({ user }) => {
     setLoading(true);
 
     try {
-      // Snapshot attachment before clearing it
       const currentAttachment = attachment;
       const file_ids = currentAttachment
         ? {
-            publicid: currentAttachment.publicid,
+            publicid: encodeURIComponent(currentAttachment.publicid),
             url: currentAttachment.url,
             name: currentAttachment.name,
             bytes: currentAttachment.bytes ?? 0,
@@ -374,11 +372,9 @@ const AIAssistant = ({ user }) => {
           }
         : null;
 
-      // Clear attachment state early so UI updates immediately
       if (currentAttachment) setAttachment(null);
 
       if (!cmd && file_ids) {
-        // ── No command: just save to root ──────────────────────────────────
         await axios.post(`${API}/createtoplevelfolder/${meid}`, {
           type: "file",
           foldername: file_ids.name,
@@ -393,7 +389,6 @@ const AIAssistant = ({ user }) => {
         return;
       }
 
-      // ── There is a command (with or without attachment) ────────────────
       if (file_ids) {
         patch(id, "running", "file ready — fetching storage data…");
       }
@@ -401,7 +396,6 @@ const AIAssistant = ({ user }) => {
       const res = await axios.get(`${API}/getallmydataforai/${meid}`);
       const mydata = res.data.mydata;
 
-      // Pass file_ids into runAICommand so it can use real data
       await runAICommand(cmd, mydata, id, file_ids);
     } catch (err) {
       toast.error(err?.response?.data?.message ?? "Failed");
@@ -420,7 +414,6 @@ const AIAssistant = ({ user }) => {
 
   return (
     <>
-      {/* ── Filename modal (shown before Cloudinary widget opens) ────────────── */}
       {showNameModal && (
         <FileNameModal
           onConfirm={handleNameConfirm}
@@ -428,13 +421,10 @@ const AIAssistant = ({ user }) => {
         />
       )}
 
-      {/* ── CldUploadWidget — invisible, triggered programmatically ─────────── */}
       <CldUploadWidget
         uploadPreset="ml_default"
         options={{
           multiple: false,
-          // Use the pending name as the Cloudinary public_id folder prefix
-          // so the file is identifiable in the Cloudinary dashboard too.
           folder: `ai_uploads`,
           // eslint-disable-next-line react-hooks/refs
           publicId: pendingNameRef.current || undefined,
@@ -624,7 +614,8 @@ const AIAssistant = ({ user }) => {
             {attachment && (
               <div className="px-3 pt-3 pb-1">
                 <div className="relative inline-flex group">
-                  {attachment.isImage ? (
+                  {/* ── Image preview (only raster + no load error) ── */}
+                  {attachment.isImage && !imgError ? (
                     <div className="relative h-16 w-16 rounded-xl overflow-hidden border border-slate-600/50 shadow-lg">
                       <Image
                         src={attachment.url}
@@ -632,9 +623,11 @@ const AIAssistant = ({ user }) => {
                         fill
                         className="object-cover"
                         sizes="64px"
+                        onError={() => setImgError(true)}
                       />
                     </div>
                   ) : (
+                    /* ── File icon fallback ── */
                     <div className="h-16 w-16 rounded-xl border border-slate-600/50 bg-slate-800 flex flex-col items-center justify-center gap-1 shadow-lg">
                       <IconFile className="h-7 w-7" />
                       <span className="text-[9px] text-slate-500 truncate max-w-12 px-1">
@@ -642,6 +635,7 @@ const AIAssistant = ({ user }) => {
                       </span>
                     </div>
                   )}
+
                   <div className="ml-2.5 flex flex-col justify-center min-w-0 max-w-40">
                     <p className="text-[11px] text-slate-300 font-medium truncate leading-tight">
                       {attachment.name}
@@ -650,6 +644,7 @@ const AIAssistant = ({ user }) => {
                       {fmtBytes(attachment.bytes)}
                     </p>
                   </div>
+
                   {/* Remove button */}
                   <button
                     onClick={handleRemoveAttachment}
@@ -668,7 +663,6 @@ const AIAssistant = ({ user }) => {
 
             {/* Text + action row */}
             <div className="flex items-center gap-2 px-3 py-2.5 font-mono">
-              {/* Paperclip / attach button — now opens name modal first */}
               <button
                 onClick={handleAttachClick}
                 disabled={loading || !!attachment}
@@ -704,7 +698,6 @@ const AIAssistant = ({ user }) => {
                 className="flex-1 bg-transparent text-[12px] text-slate-300 placeholder-slate-600 outline-none disabled:opacity-40 tracking-wide"
               />
 
-              {/* Send button */}
               <button
                 onClick={handleSend}
                 disabled={loading || (!input.trim() && !attachment)}
@@ -723,7 +716,7 @@ const AIAssistant = ({ user }) => {
             </div>
           </div>
 
-          <p className="text-[9px]  mt-1.5 text-center font-mono tracking-wide text-amber-50">
+          <p className="text-[9px] mt-1.5 text-center font-mono tracking-wide text-amber-50">
             ENTER to execute · attach files with the paperclip
           </p>
         </div>
