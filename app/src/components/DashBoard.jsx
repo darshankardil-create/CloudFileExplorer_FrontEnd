@@ -219,7 +219,7 @@ export default function Dashboard() {
 
   return (
     <div className="flex h-screen bg-slate-950 text-slate-100 overflow-hidden">
-      <AIAssistant user={user} />
+      <AIAssistant user={user} onRefreshTree={refreshTree}/>
 
       {sidebarOpen && (
         <div

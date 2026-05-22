@@ -110,7 +110,7 @@ function FileNameModal({ onConfirm, onCancel }) {
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
-const AIAssistant = ({ user }) => {
+const AIAssistant = ({ user, onRefreshTree }) => {
   const [log, setLog] = useState([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -285,6 +285,7 @@ const AIAssistant = ({ user }) => {
                 ? `File "${file_ids.name}" saved at root`
                 : `Folder "${obj?.foldername ?? "Untitled"}" created at root`,
             );
+            onRefreshTree();
             break;
 
           case "createnestedfolder":
@@ -302,6 +303,7 @@ const AIAssistant = ({ user }) => {
                 ? `File "${file_ids.name}" saved in nested folder`
                 : `Nested folder "${obj?.body?.foldername ?? "Untitled"}" created`,
             );
+            onRefreshTree();
             break;
 
           case "deletenestedfolder":
@@ -310,6 +312,7 @@ const AIAssistant = ({ user }) => {
               { data: { arrayoffoldersids: obj?.body?.arrayoffoldersids } },
             );
             patch(id, "done", "Folder deleted");
+            onRefreshTree();
             break;
 
           case "deleteonlyfiles":
@@ -318,15 +321,18 @@ const AIAssistant = ({ user }) => {
               { data: { idsoffiletodelete: obj?.body?.idsoffiletodelete } },
             );
             patch(id, "done", "File(s) deleted");
+            onRefreshTree();
             break;
 
           case "renamefolder":
             await axios.put(`${API}/renamefolder/${obj?.id}/${obj?.chgname}`);
             patch(id, "done", `Renamed to "${obj?.chgname}"`);
+            onRefreshTree();
             break;
 
           default:
             patch(id, "error", obj?.error ?? "Unknown operation");
+            onRefreshTree();
             break;
         }
       });
