@@ -16,7 +16,6 @@ import { getToken, removeToken } from "./../token";
 import { useState, useEffect } from "react";
 import DC from "./../DC";
 import toast from "react-hot-toast";
-import io from "socket.io-client";
 
 // ════════════════════════════════════════════════════════════════════════════════
 // Dashboard
@@ -219,7 +218,7 @@ export default function Dashboard() {
 
   return (
     <div className="flex h-screen bg-slate-950 text-slate-100 overflow-hidden">
-      <AIAssistant user={user} onRefreshTree={refreshTree}/>
+      <AIAssistant user={user} onRefreshTree={refreshTree} />
 
       {sidebarOpen && (
         <div
@@ -331,8 +330,9 @@ export default function Dashboard() {
           onClose={() => setLogoutModal(false)}
           onConfirm={() => {
             removeToken();
+            localStorage.removeItem(STORAGE_PATH_KEY);
             setUser(null);
-            toast.success("Signed out");
+            location.reload();
           }}
         />
       )}

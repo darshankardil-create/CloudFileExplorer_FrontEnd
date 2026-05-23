@@ -125,7 +125,10 @@ export function DeleteAccountModal({ onClose, onConfirm }) {
     try {
       await Fetchapi("/logIn", {
         method: "POST",
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify({
+          username: username.trim(),
+          password: password.trim(),
+        }),
       });
       onConfirm();
     } catch {
