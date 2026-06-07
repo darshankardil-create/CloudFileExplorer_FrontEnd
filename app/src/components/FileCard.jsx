@@ -18,7 +18,8 @@ export default function FileCard({
   const isImage =
     !imgError &&
     file.url &&
-    (/\/image\/upload\//i.test(file.url) && RASTER.test(file.url));
+    /\/image\/upload\//i.test(file.url) &&
+    RASTER.test(file.url);
 
   const isSelected = selectedIds.has(file.publicid);
 

@@ -261,6 +261,7 @@ export default function Dashboard() {
             treeLoading={treeLoading}
             onDropToTop={handleDropToTop}
             onDropToFolder={handleDropToFolder}
+            onRefreshTree={refreshTree}
           />
         </div>
         <div className="border-t border-slate-700/30 p-3 flex flex-col gap-1">

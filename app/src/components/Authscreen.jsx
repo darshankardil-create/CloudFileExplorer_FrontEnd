@@ -26,7 +26,10 @@ function AuthScreen({ onAuth }) {
     try {
       const data = await Fetchapi(mode === "login" ? "/logIn" : "/signIn", {
         method: "POST",
-        body: JSON.stringify({username:username.trim(), password:password.trim() }),
+        body: JSON.stringify({
+          username: username.trim(),
+          password: password.trim(),
+        }),
       });
       setToken(data.token);
       const me = await Fetchapi("/me");

@@ -16,6 +16,7 @@ function Sidebar({
   treeLoading,
   onDropToTop,
   onDropToFolder,
+  onRefreshTree,
 }) {
   const [dragOverId, setDragOverId] = useState(null);
   const [dragOverTop, setDragOverTop] = useState(false);
@@ -84,6 +85,7 @@ function Sidebar({
                 dragOverId={dragOverId}
                 setDragOverId={setDragOverId}
                 onDropToFolder={onDropToFolder}
+                onRefreshTree={onRefreshTree}
               />
             );
           })

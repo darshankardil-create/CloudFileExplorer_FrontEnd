@@ -25,6 +25,7 @@ function FolderNode({
   dragOverId,
   setDragOverId,
   onDropToFolder,
+  onRefreshTree,
 }) {
   const { Fetchapi } = useFetch();
 
@@ -56,6 +57,7 @@ function FolderNode({
       );
       setRenameModal(false);
       toast.success("Folder renamed");
+      onRefreshTree();
     } catch {
       toast.error("Rename failed");
     }
@@ -63,12 +65,13 @@ function FolderNode({
   async function handleDelete() {
     try {
       const rootParam = parentIsTop ? "root" : "nested";
-      await apiFetch(`/deletenestedfolder/${user.id}/${rootParam}/nodelete`, {
+      await Fetchapi(`/deletenestedfolder/${user.id}/${rootParam}/nodelete`, {
         method: "DELETE",
         body: JSON.stringify({ arrayoffoldersids: [folderId] }),
       });
       setDeleteModal(false);
       toast.success("Folder deleted");
+      onRefreshTree();
     } catch (e) {
       toast.error(e.message || "Delete failed");
     }
@@ -189,6 +192,7 @@ function FolderNode({
               dragOverId={dragOverId}
               setDragOverId={setDragOverId}
               onDropToFolder={onDropToFolder}
+              onRefreshTree={onRefreshTree}
             />
           ))}
         </div>
