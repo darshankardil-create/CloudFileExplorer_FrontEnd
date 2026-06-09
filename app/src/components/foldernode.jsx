@@ -71,6 +71,17 @@ function FolderNode({
       });
       setDeleteModal(false);
       toast.success("Folder deleted");
+      const arr = localStorage.getItem("cloudfileexplorer_current_path");
+      const parse = JSON.parse(arr);
+      if (parse.length > 0) {
+        const filterd = parse.filter((i) => i.id !== folderId);
+        localStorage.setItem(
+          "cloudfileexplorer_current_path",
+          JSON.stringify(filterd),
+        );
+        location.reload()
+      }
+
       onRefreshTree();
     } catch (e) {
       toast.error(e.message || "Delete failed");
