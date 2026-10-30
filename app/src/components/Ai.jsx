@@ -37,6 +37,16 @@ function fmtBytes(b) {
   if (b < 1048576) return `${(b / 1024).toFixed(1)} KB`;
   return `${(b / 1048576).toFixed(2)} MB`;
 }
+function getErrorMessage(error, fallback) {
+  const data = error?.response?.data;
+  return (
+    data?.message ??
+    data?.error ??
+    (typeof data === "string" ? data : null) ??
+    error?.message ??
+    fallback
+  );
+}
 
 // ─── localStorage helpers (safe) ──────────────────────────────────────────────
 const LS_KEY = "ai_attachment";
@@ -257,87 +267,91 @@ const AIAssistant = ({ user, onRefreshTree }) => {
       socket.emit("send", { dataforai: messages });
 
       socket.on("errorinai", (data) => {
-        throw new Error(data.message);
+        patch(id, "error", getErrorMessage(data, "AI command failed"));
       });
 
       socket.on("success", async (data) => {
-        const obj =
-          typeof data?.myai === "string" ? JSON.parse(data.myai) : "failed";
+        try {
+          const obj =
+            typeof data?.myai === "string" ? JSON.parse(data.myai) : "failed";
 
-        if (obj === "failed" || !obj || obj?.error) {
-          patch(id, "error", obj?.error ?? "Operation failed");
-          return;
-        }
+          if (obj === "failed" || !obj || obj?.error) {
+            patch(id, "error", obj?.error ?? "Operation failed");
+            return;
+          }
 
-        switch (obj.endpoint) {
-          case "createtoplevelfolder":
-            await axios.post(`${API}/createtoplevelfolder/${meid}`, {
-              type: file_ids ? "file" : (obj?.type ?? "folder"),
-              foldername: file_ids
-                ? file_ids.name
-                : (obj?.foldername ?? "Untitled"),
-              file_ids: file_ids ?? noFile,
-            });
-            patch(
-              id,
-              "done",
-              file_ids
-                ? `File "${file_ids.name}" saved at root`
-                : `Folder "${obj?.foldername ?? "Untitled"}" created at root`,
-            );
-            onRefreshTree();
-            break;
+          switch (obj.endpoint) {
+            case "createtoplevelfolder":
+              await axios.post(`${API}/createtoplevelfolder/${meid}`, {
+                type: file_ids ? "file" : (obj?.type ?? "folder"),
+                foldername: file_ids
+                  ? file_ids.name
+                  : (obj?.foldername ?? "Untitled"),
+                file_ids: file_ids ?? noFile,
+              });
+              patch(
+                id,
+                "done",
+                file_ids
+                  ? `File "${file_ids.name}" saved at root`
+                  : `Folder "${obj?.foldername ?? "Untitled"}" created at root`,
+              );
+              onRefreshTree();
+              break;
 
-          case "createnestedfolder":
-            await axios.post(`${API}/createnestedfolder/${obj.idoffolderdoc}`, {
-              type: file_ids ? "file" : (obj.type ?? "folder"),
-              foldername: file_ids
-                ? file_ids.name
-                : (obj?.body?.foldername ?? "Untitled"),
-              file_ids: file_ids ?? noFile,
-            });
-            patch(
-              id,
-              "done",
-              file_ids
-                ? `File "${file_ids.name}" saved in nested folder`
-                : `Nested folder "${obj?.body?.foldername ?? "Untitled"}" created`,
-            );
-            onRefreshTree();
-            break;
+            case "createnestedfolder":
+              await axios.post(`${API}/createnestedfolder/${obj.idoffolderdoc}`, {
+                type: file_ids ? "file" : (obj.type ?? "folder"),
+                foldername: file_ids
+                  ? file_ids.name
+                  : (obj?.body?.foldername ?? "Untitled"),
+                file_ids: file_ids ?? noFile,
+              });
+              patch(
+                id,
+                "done",
+                file_ids
+                  ? `File "${file_ids.name}" saved in nested folder`
+                  : `Nested folder "${obj?.body?.foldername ?? "Untitled"}" created`,
+              );
+              onRefreshTree();
+              break;
 
-          case "deletenestedfolder":
-            await axios.delete(
-              `${API}/deletenestedfolder/${meid}/${obj.root}/nodelete`,
-              { data: { arrayoffoldersids: obj?.body?.arrayoffoldersids } },
-            );
-            patch(id, "done", "Folder deleted");
-            onRefreshTree();
-            break;
+            case "deletenestedfolder":
+              await axios.delete(
+                `${API}/deletenestedfolder/${meid}/${obj.root}/nodelete`,
+                { data: { arrayoffoldersids: obj?.body?.arrayoffoldersids } },
+              );
+              patch(id, "done", "Folder deleted");
+              onRefreshTree();
+              break;
 
-          case "deleteonlyfiles":
-            await axios.delete(
-              `${API}/deleteonlyfiles/${meid}/${obj?.folderid}${obj?.level ? `?level=${obj.level}` : ""}`,
-              { data: { idsoffiletodelete: obj?.body?.idsoffiletodelete } },
-            );
-            patch(id, "done", "File(s) deleted");
-            onRefreshTree();
-            break;
+            case "deleteonlyfiles":
+              await axios.delete(
+                `${API}/deleteonlyfiles/${meid}/${obj?.folderid}${obj?.level ? `?level=${obj.level}` : ""}`,
+                { data: { idsoffiletodelete: obj?.body?.idsoffiletodelete } },
+              );
+              patch(id, "done", "File(s) deleted");
+              onRefreshTree();
+              break;
 
-          case "renamefolder":
-            await axios.put(`${API}/renamefolder/${obj?.id}/${obj?.chgname}`);
-            patch(id, "done", `Renamed to "${obj?.chgname}"`);
-            onRefreshTree();
-            break;
+            case "renamefolder":
+              await axios.put(`${API}/renamefolder/${obj?.id}/${obj?.chgname}`);
+              patch(id, "done", `Renamed to "${obj?.chgname}"`);
+              onRefreshTree();
+              break;
 
-          default:
-            patch(id, "error", obj?.error ?? "Unknown operation");
-            onRefreshTree();
-            break;
+            default:
+              patch(id, "error", obj?.error ?? "Unknown operation");
+              onRefreshTree();
+              break;
+          }
+        } catch (err) {
+          patch(id, "error", getErrorMessage(err, "AI command failed"));
         }
       });
     } catch (err) {
-      patch(id, "error", err?.response?.data?.message ?? "Request failed");
+      patch(id, "error", getErrorMessage(err, "Request failed"));
     }
   }
 
@@ -404,8 +418,9 @@ const AIAssistant = ({ user, onRefreshTree }) => {
 
       await runAICommand(cmd, mydata, id, file_ids);
     } catch (err) {
-      toast.error(err?.response?.data?.message ?? "Failed");
-      patch(id, "error", err?.response?.data?.message ?? "failed");
+      const message = getErrorMessage(err, "Failed");
+      toast.error(message);
+      patch(id, "error", message);
     } finally {
       setLoading(false);
     }
